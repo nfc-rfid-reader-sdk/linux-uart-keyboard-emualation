@@ -1,0 +1,4 @@
+gcc -O3 -Wall -c -fmessage-length=0 -o "src/kbdemu.o" "../src/kbdemu.c" 
+gcc -O3 -Wall -c -fmessage-length=0 -o "src/main.o" "../src/main.c"
+
+gcc -o linux-uart-keyboard-emu-local "src/kbdemu.o" "src/main.o" -lX11 -lXtst
