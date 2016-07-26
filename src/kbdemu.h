@@ -1,7 +1,7 @@
 
 #define DEFAULT_PORT 		"/dev/ttyUSB0"
 #define DEFAULT_BAUD_RATE	1000000
-#define APP_VERSION			"1.1"
+#define APP_VERSION			"1.2"
 
 int sw_open_serial(const char *port, int baud_rate);
 void sw_init();

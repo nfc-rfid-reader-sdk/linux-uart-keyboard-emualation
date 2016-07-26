@@ -246,7 +246,7 @@ int sw_open_serial(const char *port, int baud_rate) {
 
 	PortSetRTS(serialPort, 0);
 	PortSetBaudRate(serialPort, baud_rate);
-	usleep(333000);
+	usleep(500000);
 	tcflush(serialPort, TCIFLUSH);
 	return 0;
 }
