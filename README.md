@@ -16,3 +16,12 @@ which can be combined for -c and -s parameters
 
 To get app version use:
 linux-uart-keyboard-emulation -v
+
+(Fixing log error:
+ stated:
+  Version 1.1
+  +Linux executables
+ should be:
+  Version 1.2
+  +Linux executables
+)
