@@ -246,13 +246,8 @@ int sw_open_serial(const char *port, int baud_rate) {
 
 	PortSetRTS(serialPort, 0);
 	PortSetBaudRate(serialPort, baud_rate);
-	usleep(100000);
+	usleep(333000);
 	tcflush(serialPort, TCIFLUSH);
-//	if (baud_rate == B1000000) {
-//		trash_bytes = 3;
-//	} else if (baud_rate == B115200) {
-//		trash_bytes = 1;
-//	}
 	return 0;
 }
 
@@ -289,12 +284,7 @@ void sw_read_loop() {
 	readbuf[1] = 0;
 
 	while(read(serialPort, readbuf, 1) > 0) {
-
-//		if (!trash_bytes) {
-			press_keys(readbuf);
-//		} else {
-//			trash_bytes--;
-//		}
+		press_keys(readbuf);
 	}
 
 
