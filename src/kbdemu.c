@@ -246,7 +246,7 @@ int sw_open_serial(const char *port, int baud_rate) {
 
 	PortSetRTS(serialPort, 0);
 	PortSetBaudRate(serialPort, baud_rate);
-	usleep(500000);
+	usleep(1200000);
 	tcflush(serialPort, TCIFLUSH);
 	return 0;
 }
@@ -282,9 +282,11 @@ void sw_read_loop() {
 
 	char readbuf[2];
 	readbuf[1] = 0;
+	int rcv_num;
 
-	while(read(serialPort, readbuf, 1) > 0) {
-		press_keys(readbuf);
+	while((rcv_num = read(serialPort, readbuf, 1)) >= 0) {
+		if (rcv_num)
+			press_keys(readbuf);
 	}
 
 

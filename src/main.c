@@ -5,7 +5,7 @@
  Author      : d-logic
  Version     :
  Copyright   :
- Version     : 1.0
+ Version     : 1.3
  ============================================================================
  */
 
@@ -36,7 +36,7 @@ int main(int argc, char**argv)
 	while ((c = getopt(argc, argv, "fvs:c:")) != -1) {
 		switch (c) {
 			case 'f':
-				fprintf(stderr, "softwedge not daemonizing...\n");
+				fprintf(stderr, "Start without daemonizing...\n");
 				dontDaemon = 1;
 				break;
 			case 'v':
