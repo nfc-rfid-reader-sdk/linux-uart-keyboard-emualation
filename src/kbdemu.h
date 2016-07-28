@@ -1,11 +1,13 @@
 
 #define DEFAULT_PORT 		"/dev/ttyUSB0"
 #define DEFAULT_BAUD_RATE	1000000
-#define APP_VERSION			"1.3"
+#define APP_VERSION			"1.4"
 
-int sw_open_serial(const char *port, int baud_rate);
-void sw_init();
-void sw_read_loop();
+int OpenUART(const char *port, int baud_rate);
+void InitDisp();
+void ReadWorker();
 void PortSetRTS(int fd, int level);
 void PortSetBaudRate(int fd, int br);
-int get_linux_baudrate(int speed);
+int GetBaudrate(int speed);
+void XKeyPress(unsigned char letter);
+void PressKeys(char* string);

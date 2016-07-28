@@ -5,7 +5,7 @@
  Author      : d-logic
  Version     :
  Copyright   :
- Version     : 1.0
+ Version     : 1.4
  ============================================================================
  */
 
@@ -14,95 +14,25 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/extensions/XTest.h>
-#include <X11/keysymdef.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/extensions/XTest.h>
+#include <X11/keysymdef.h>
 #include "kbdemu.h"
 
-static int serialPort;
-//static int trash_bytes;
-static Display *dpy;
-
-static void xtest_key_press(unsigned char letter) {
-	unsigned int shiftcode = XKeysymToKeycode(dpy, XStringToKeysym("Shift_L"));
-	int upper = 0;
-	int skip_lookup = 0;
-	char s[2];
-	s[0] = letter;
-	s[1] = 0;
-	KeySym sym = XStringToKeysym(s);
-	KeyCode keycode;
-
-	if (sym == 0) {
-		sym = letter;
-	}
-
-	if (sym == '\n') {
-		sym = XK_Return;
-		skip_lookup = 1;
-	} else if (sym == '\t') {
-		sym = XK_Tab;
-		skip_lookup = 1;
-	}
-
-	keycode = XKeysymToKeycode(dpy, sym);
-	if (keycode == 0) {
-		sym = 0xff00 | letter;
-		keycode = XKeysymToKeycode(dpy, sym);
-	}
-
-  if (!skip_lookup) {
-    // Here we try to determine if a keysym
-    // needs a modifier key (shift), such as a
-    // shifted letter or symbol.
-    // The second keysym should be the shifted char
-    KeySym *syms;
-    int keysyms_per_keycode;
-    syms = XGetKeyboardMapping(dpy, keycode, 1, &keysyms_per_keycode);
-    int i = 0;
-    for (i = 0; i <= keysyms_per_keycode; i++) {
-      if (syms[i] == 0)
-	break;
-      
-      if (i == 0 && syms[i] != letter)
-	upper = 1;
-      
-      
-    }
-  }
-
-  if (upper)
-    XTestFakeKeyEvent(dpy, shiftcode, True, 0);	
-
-  
-  XTestFakeKeyEvent(dpy, keycode, True, 0);	
-  XTestFakeKeyEvent(dpy, keycode, False, 0);
-
-  if (upper)
-	  XTestFakeKeyEvent(dpy, shiftcode, False, 0);
-}
-
-static void press_keys(char* string) {
-  int len = strlen(string);
-  int i = 0;
-  for (i = 0; i < len; i++) {
-    xtest_key_press(string[i]);
-  }
-  XFlush(dpy);
-}
+static int uart;
+static Display *disp;
 
 void PortSetRTS(int fd, int level) {
 	int uart_status;
 
-	/* GET the State of MODEM bits in Status */
-	if (ioctl(fd, TIOCMGET, &uart_status) == -1)
-	{
+	// GET the State of MODEM bits in Status
+	if (ioctl(fd, TIOCMGET, &uart_status) == -1) {
 		perror("setRTS(): TIOCMGET");
 		return;
 	}
@@ -112,18 +42,15 @@ void PortSetRTS(int fd, int level) {
 	else
 		uart_status &= ~TIOCM_RTS;
 
-	if (ioctl(fd, TIOCMSET, &uart_status) == -1)
-	{
+	if (ioctl(fd, TIOCMSET, &uart_status) == -1) {
 		perror("setRTS(): TIOCMSET");
 	}
 }
 
-int get_linux_baudrate(int speed)
-{
+int GetBaudrate(int speed) {
 	int baudr;
 
-	switch (speed)
-	{
+	switch (speed) {
 	case 50:
 		baudr = B50;
 		break;
@@ -236,60 +163,117 @@ void PortSetBaudRate(int fd, int br) {
 	tcsetattr(fd, TCSANOW, &options);
 }
 
-int sw_open_serial(const char *port, int baud_rate) {
+int OpenUART(const char *port, int baud_rate) {
 
-	serialPort = open(port, O_RDONLY);
-		if (serialPort < 0) {
-		fprintf(stderr, "Can't open serial port: %s\n", port);
+	uart = open(port, O_RDONLY);
+	if (uart < 0) {
+		fprintf(stderr, "Can't open UART: %s\n", port);
 		exit(-1);
 	}
 
-	PortSetRTS(serialPort, 0);
-	PortSetBaudRate(serialPort, baud_rate);
+	PortSetRTS(uart, 0);
+	PortSetBaudRate(uart, baud_rate);
 	usleep(1200000);
-	tcflush(serialPort, TCIFLUSH);
+	tcflush(uart, TCIFLUSH);
 	return 0;
 }
 
-void sw_init() {
+void InitDisp() {
 
-  int xtest_major_version = 0;
-  int xtest_minor_version = 0;
-  int dummy;
+	int ver_major = 0;
+	int ver_minor = 0;
+	int not_care;
 
-  
-  /*
-   * Open the display using the $DISPLAY environment variable to locate
-   * the X server.  See Section 2.1.
-   */
-  if ((dpy = XOpenDisplay(NULL)) == NULL) {
-    fprintf(stderr, "%s: can't open %s\en", "softwedge", XDisplayName(NULL));
-    exit(1);
-  }
-  
-  Bool success = XTestQueryExtension(dpy, &dummy, &dummy,
-				     &xtest_major_version, &xtest_minor_version);
-  if(success == False || xtest_major_version < 2 ||
-     (xtest_major_version <= 2 && xtest_minor_version < 2))
-    {
-      fprintf(stderr,"XTEST extension not supported. Can't continue\n");
-      exit(1);
-    }
+	// Opening the display:
+	if ((disp = XOpenDisplay(NULL)) == NULL) {
+		fprintf(stderr, "Can't open %s. Exiting...\n", XDisplayName(NULL));
+		exit(1);
+	}
+
+	// Get XTEST version:
+	Bool success = XTestQueryExtension(disp, &not_care, &not_care, &ver_major, &ver_minor);
+	if (success == False || ver_major < 2
+			|| (ver_major <= 2 && ver_minor < 2)) {
+		fprintf(stderr, "XTEST not supported. Exiting...\n");
+		exit(1);
+	}
 }
 
-
-void sw_read_loop() {
+void ReadWorker() {
 
 	char readbuf[2];
 	readbuf[1] = 0;
-	int rcv_num;
+	ssize_t rcv_num;
 
-	while((rcv_num = read(serialPort, readbuf, 1)) >= 0) {
+	while ((rcv_num = read(uart, readbuf, 1)) >= 0) {
 		if (rcv_num)
-			press_keys(readbuf);
+			PressKeys(readbuf);
 	}
 
+	// Closing UART:
+	close(uart);
+}
 
-  // We're done now
-  close(serialPort);
+void XKeyPress(unsigned char ch) {
+	unsigned int shiftcode = XKeysymToKeycode(disp, XStringToKeysym("Shift_L"));
+	int uppercase = 0;
+	int skip = 0;
+	char s[2];
+	KeyCode scan_code;
+	KeySym key_sym = XStringToKeysym(s);
+
+	s[0] = ch;
+	s[1] = 0;
+	if (key_sym == 0) {
+		key_sym = ch;
+	}
+
+	if (key_sym == '\n') {
+		key_sym = XK_Return;
+		skip = 1;
+	} else if (key_sym == '\t') {
+		key_sym = XK_Tab;
+		skip = 1;
+	}
+
+	scan_code = XKeysymToKeycode(disp, key_sym);
+	if (scan_code == 0) {
+		key_sym = ch | 0xff00;
+		scan_code = XKeysymToKeycode(disp, key_sym);
+	}
+
+	if (!skip) {
+		// Is SHIFT needed?
+		KeySym *sym;
+		int test;
+		int i;
+
+		sym = XGetKeyboardMapping(disp, scan_code, 1, &test);
+		for (i = 0; i <= test; i++) {
+			if (sym[i] == 0)
+				break;
+
+			if (i == 0 && sym[i] != ch)
+				uppercase = 1;
+		}
+	}
+
+	if (uppercase)
+		XTestFakeKeyEvent(disp, shiftcode, True, 0);
+
+	XTestFakeKeyEvent(disp, scan_code, True, 0);
+	XTestFakeKeyEvent(disp, scan_code, False, 0);
+
+	if (uppercase)
+		XTestFakeKeyEvent(disp, shiftcode, False, 0);
+}
+
+void PressKeys(char* str) {
+	int str_len = strlen(str);
+	int i = 0;
+
+	for (i = 0; i < str_len; i++) {
+		XKeyPress(str[i]);
+	}
+	XFlush(disp);
 }
